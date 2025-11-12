@@ -10,7 +10,7 @@
 #include "ossyslink.h"
 
 int log_osl = 0;
-struct ossyslinkbase *ossyslinkbase;
+struct syslinkbase *ossyslinkbase;
 static uae_u32 OSSysLinkLibBase;
 
 static uae_u32 res_name, res_id, res_init;
@@ -47,12 +47,12 @@ static uae_u32 gettask (TrapContext *ctx)
 }
 
 /* Allocate and initialize per-task state structure */
-static struct ossyslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
+static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 {
 	SLB;
 	int i;
 
-	if ((slb = xcalloc (struct ossyslinkbase, 1)) != NULL) {
+	if ((slb = xcalloc (struct syslinkbase, 1)) != NULL) {
 		slb->ownertask = gettask(ctx);
 		slb->sysbase = trap_get_long(ctx, 4);
 
@@ -117,6 +117,8 @@ static uae_u32 REGPARAM2 ossyslinklib_init (TrapContext *ctx)
 	trap_call_add_areg(ctx, 1, tmp1);
 	trap_call_lib(ctx, trap_get_areg(ctx, 6), -0x18c); /* AddLibrary */
 
+  OSSysLinkLibBase = tmp1;
+
  	trap_call_add_dreg(ctx, 0, tmp1);
 	trap_call_add_dreg(ctx, 1, 0);
 	tmp1 = trap_call_lib(ctx, trap_get_areg(ctx, 6), -0xC6); /* AllocMem */
@@ -140,10 +142,11 @@ static uae_u32 REGPARAM2 ossyslinklib_Open (TrapContext *ctx)
   write_log(_T("Open OSSYSLINK.library 0.1\n"));
 
  	if ((slb = alloc_ossyslinkbase(ctx)) != NULL) {
-    OSLTRACE((_T("alloc_ossyslinkbase() successful. [%d]\n"),slb));
-    OSLTRACE((_T("OSSysLinkLibBase                  [%d]\n"),OSSysLinkLibBase));
+    OSLTRACE((_T("alloc_ossyslinkbase() successful. [%d]\n"),slb));                                                       // Appears to have a value at least. 
+    OSLTRACE((_T("OSSysLinkLibBase                  [%d]\n"),OSSysLinkLibBase));                                          // This 'likely' shouldn't be 0
+    //OSLTRACE((_T("OC                                [%d]\n"),opencount = trap_get_word(ctx, OSSysLinkLibBase + 32) + 1)); // 249? it's not 1?  count doesn't start from 0? weird.
+    
 		trap_put_word(ctx, OSSysLinkLibBase + 32, opencount = trap_get_word(ctx, OSSysLinkLibBase + 32) + 1);		
-    /* this is coursing GURU
 		trap_call_add_areg(ctx, 0, functable);
 		trap_call_add_areg(ctx, 1, datatable);
 		trap_call_add_areg(ctx, 2, 0);
@@ -152,8 +155,8 @@ static uae_u32 REGPARAM2 ossyslinklib_Open (TrapContext *ctx)
 		result = trap_call_lib(ctx, slb->sysbase, -0x54);
 
 		put_pointer(result + offsetof(struct UAEOSSYSLINKBase, slb), slb);
-    */
-		OSLTRACE ((_T("%0x [%d]\n"), result, opencount));
+
+    OSLTRACE ((_T("%0x [%d]\n"), result, opencount));
 	} else {
 		OSLTRACE ((_T("failed (out of memory)\n")));
   }
@@ -264,9 +267,12 @@ void ossyslinklib_install(void)
 	functable = here ();
 	for (i = 1; i < 4; i++)
 		dl (ossyslink_funcvecs[i]);	/* Open / Close / Expunge */
+
 	dl (EXPANSION_nullfunc);	/* Null */
+
 	for (i = 4; i < (int) (sizeof (ossyslink_funcs) / sizeof (ossyslink_funcs[0])); i++)
 		dl (ossyslink_funcvecs[i]);
+
 	dl (0xFFFFFFFF);		/* end of table */
 
 	/* DataTable */

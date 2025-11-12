@@ -37,9 +37,9 @@ struct UAEOSSYSLINKBase {
 	uae_u8 scratchbuf[SCRATCHBUFSIZE];
 };
 
-struct ossyslinkbase {
-  struct ossyslinkbase *next;
-  struct ossyslinkbase *nextsig;	/* queue for tasks to signal */
+struct syslinkbase {
+  struct syslinkbase *next;
+  struct syslinkbase *nextsig;	/* queue for tasks to signal */
 
   uaecptr sysbase;  
   int dosignal;
@@ -54,7 +54,7 @@ struct ossyslinkbase {
 
 };
 
-#define SLB struct ossyslinkbase *slb
+#define SLB struct syslinkbase *slb
 
 extern uaecptr ossyslinklib_startup (TrapContext*, uaecptr);
 extern void ossyslinklib_install (void);
