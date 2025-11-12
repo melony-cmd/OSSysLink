@@ -1,3 +1,82 @@
+Only in A: amiberry_v7.1.1.code-workspace
+Only in A: build
+Only in A: trace_library_func.txt
+------------------------------------------------------------------------------------------
+Filename: CMakeLists.txt
+- diff -----------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/CMakeLists.txt
++++ /home/inner/Source/amiberry-7.1.1.zip/CMakeLists.txt
+@@ -26,7 +26,6 @@
+ option(USE_GPIOD         "Use GPIOD to control GPIO LEDs" OFF)
+
+ option(USE_DBUS          "Use DBus to control the emulator" OFF)
+
+ option(USE_OPENGL        "Use OpenGL for rendering (currently BROKEN)" OFF)
+
+-option(USE_OSSYSLINK     "Use OSSYSLINK" ON)
+
+ option(WITH_LTO          "Enable Link Time Optimization" OFF)
+
+ 
+
+ # Automatically disable PCem on RISC-V targets
+
+@@ -106,4 +105,3 @@
+ if(TARGET amiberry AND CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+
+     target_link_libraries(amiberry PRIVATE ${LIBUSB_LIBRARY} serialport ${EXTRA_LIBS})
+
+ endif()
+
+-
+
+
+------------------------------------------------------------------------------------------
+Filename: cmake/SourceFiles.cmake
+- diff -----------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/cmake/SourceFiles.cmake
++++ /home/inner/Source/amiberry-7.1.1.zip/cmake/SourceFiles.cmake
+@@ -73,7 +73,6 @@
+         src/native2amiga.cpp
+
+         src/ncr9x_scsi.cpp
+
+         src/ncr_scsi.cpp
+
+-        src/ossyslink.cpp
+
+         src/parser.cpp
+
+         src/pci.cpp
+
+         src/rommgr.cpp
+
+@@ -463,12 +462,6 @@
+         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+
+ )
+
+ 
+
+-# Optional OSSYSLINK feature
+
+-if(USE_OSSYSLINK)
+
+-    message(STATUS "Building with OSSYSLINK support")
+
+-    list(APPEND SOURCES src/ossyslink.cpp)
+
+-endif()
+
+-
+
+ # Settings for installing per platform
+
+ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+
+     include(cmake/linux/CMakeLists.txt)
+
+
 Only in A: src/ossyslink.cpp
 ------------------------------------------------------------------------------------------
 Filename: src/devices.cpp
