@@ -1,0 +1,121 @@
+------------------------------------------------------------------------------------------
+Filename: src/devices.cpp
+- diff -----------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/src/devices.cpp
++++ /home/inner/Source/amiberry-7.1.1.zip/src/devices.cpp
+@@ -40,7 +40,6 @@
+ #ifdef SERIAL_PORT
+
+ #include "serial.h"
+
+ #endif
+
+-#include "ossyslink.h"
+
+ #include "bsdsocket.h"
+
+ #include "uaeserial.h"
+
+ #include "uaeresource.h"
+
+@@ -460,9 +459,6 @@
+ 	keymcu_init();
+
+ 	keymcu2_init();
+
+ 	keymcu3_init();
+
+-#ifdef WITH_OSSYSLINK
+
+-	ossyslinklib_install();
+
+-#endif
+
+ }
+
+ 
+
+ void devices_restore_start(void)
+
+
+------------------------------------------------------------------------------------------
+Filename: src/filesys.cpp
+- diff -----------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/src/filesys.cpp
++++ /home/inner/Source/amiberry-7.1.1.zip/src/filesys.cpp
+@@ -55,7 +55,6 @@
+ #include "cdtv.h"
+
+ #include "sana2.h"
+
+ #include "bsdsocket.h"
+
+-#include "ossyslink.h"
+
+ #include "uaeresource.h"
+
+ #include "inputdevice.h"
+
+ #include "clipboard.h"
+
+@@ -72,7 +71,6 @@
+ #include "picasso96.h"
+
+ #include "cpuboard.h"
+
+ #include "rommgr.h"
+
+-
+
+ #include "debug.h"
+
+ #include "debugmem.h"
+
+ #ifdef RETROPLATFORM
+
+@@ -7792,10 +7790,6 @@
+ 		trap_put_long(ctx, resaddr + 0x16, keymaphook_initcode);
+
+ 		resaddr += 0x1A;
+
+ 	}
+
+-#endif
+
+-
+
+-#ifdef WITH_OSSYSLINK
+
+-	resaddr = ossyslinklib_startup(ctx, resaddr);
+
+ #endif
+
+ 
+
+ 	last_resident = resaddr;
+
+
+------------------------------------------------------------------------------------------
+Filename: src/osdep/sysconfig.h
+- diff -----------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/src/osdep/sysconfig.h
++++ /home/inner/Source/amiberry-7.1.1.zip/src/osdep/sysconfig.h
+@@ -151,9 +151,6 @@
+ // Beam racing support
+
+ //#define WITH_BEAMRACER
+
+ 
+
+-// Operating System Link - An interlink library between the host operating system code and the emulated AmigaOS
+
+-#define WITH_OSSYSLINK
+
+-
+
+ #define A_ZIP
+
+ /* #define A_RAR */
+
+ #define A_7Z
+
