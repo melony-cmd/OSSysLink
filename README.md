@@ -7,7 +7,13 @@ it contains C & E code for Opening ossyslink.library, while eventually I'll work
 Build              - amiga script for building the code.
 
 ossyslink.m        - pre-compiled module.
+
 pragma_ossyslink.h - so pragma2module can convert it to the forementioned module.
+
 test_ossyslink     - Amiga executable binary
+
 test_ossyslink.e   - AmigaE code for the forementioned executable
+
+
+
 
