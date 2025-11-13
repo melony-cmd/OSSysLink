@@ -125,10 +125,33 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 	return NULL;
 }
 
+/* ---------------------------------------------------------------------------
+ * free_ossyslinkbase()
+ *
+ *  Releases a per-task OSSysLinkBase structure previously allocated by
+ *  alloc_ossyslinkbase(). This should clean up all task-specific resources,
+ *  including descriptor tables, allocated signals, and the linked-list entry
+ *  used to track active bases.
+ *
+ *  NOTE:
+ *    Currently this function is a stub and performs no cleanup. It must be
+ *    expanded to:
+ *      - Free dtable and ftable arrays
+ *      - Release any allocated signals via FreeSignal()
+ *      - Remove the entry from the global ossyslinkbase linked list
+ *      - Free the ossyslinkbase structure itself
+ *
+ *  Parameters:
+ *    ctx - Trap execution context
+ *
+ *  Returns:
+ *    Nothing.
+ * --------------------------------------------------------------------------- */
 static void free_ossyslinkbase (TrapContext *ctx) 
 {
   return;
 }
+ 
 /* ---------------------------------------------------------------------------
    STANDARD FUNCTIONS (AmigaOS)
    --------------------------------------------------------------------------- */
@@ -402,9 +425,17 @@ void ossyslinklib_install(void)
     write_log (_T("ossyslink: User Function Vectors [%+d]\n"),ossyslink_funcvecs[i]);
 		dl (ossyslink_funcvecs[i]);
   }
-
-
 	dl (0xFFFFFFFF);		/* end of table */
+
+  /* Debugging Print the table */
+
+  int count = sizeof(funcnames) / sizeof(funcnames[0]);
+
+  for (int i = 0; i < count; i++) {
+    uae_u32 amiga_offset = i * 4;   /*-> this is the real LVO offset*/
+
+    write_log(_T("ossyslink: %s => %08X => %d(%08X)\n"),funcnames[i],ossyslink_funcvecs[i],amiga_offset,amiga_offset);
+  }
 
 	/* DataTable */
 	datatable = here ();
