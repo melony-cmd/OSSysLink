@@ -1,3 +1,15 @@
+/* ---------------------------------------------------------------------------
+ *
+ * OSSYSLINK.LIBRARY — UAE/Amiberry Host Support Library
+ *
+ * Provides a minimal example of how to build an AmigaOS-style shared library
+ * that integrates with UAE trap handling.
+ *
+ * Version: 0.1
+ * Author: Tim Roughton (OSSysLink)
+ *
+ * --------------------------------------------------------------------------- */
+
 #include "sysconfig.h"
 #include "sysdeps.h"
 
@@ -9,6 +21,10 @@
 #include "traps.h"
 #include "ossyslink.h"
 
+/* ---------------------------------------------------------------------------
+   GLOBAL
+   --------------------------------------------------------------------------- */
+
 int log_osl = 0;
 struct syslinkbase *ossyslinkbase;
 static uae_u32 OSSysLinkLibBase;
@@ -19,12 +35,22 @@ static uae_u32 functable, datatable, inittable;
 static uae_sem_t sem_queue;
 
 /* ---------------------------------------------------------------------------
-
-   ASSIST FUNCTIONS
-
+   EMULATION SUPPORT FUNCTIONS
    --------------------------------------------------------------------------- */
 
-/* Get current task */
+/* ---------------------------------------------------------------------------
+ * gettask()
+ *
+ *  Retrieves the pointer to the current Amiga task structure.
+ *
+ *  Uses the system's FindTask() function via a library trap call.
+ *
+ *  Parameters:
+ *    ctx - Trap execution context
+ *
+ *  Returns:
+ *    Address of the current task (pointer in Amiga memory space)
+ * --------------------------------------------------------------------------- */
 static uae_u32 gettask (TrapContext *ctx)
 {
 	uae_u32 currtask, a1 = trap_get_areg(ctx, 1);
@@ -46,7 +72,20 @@ static uae_u32 gettask (TrapContext *ctx)
 	return currtask;
 }
 
-/* Allocate and initialize per-task state structure */
+/* ---------------------------------------------------------------------------
+ * alloc_ossyslinkbase()
+ *
+ *  Allocates and initializes a new per-task OSSysLinkBase structure.
+ *  This structure stores task-specific context, descriptor tables, and
+ *  allocated signal numbers for asynchronous communication.
+ *
+ *  Parameters:
+ *    ctx - Trap execution context
+ *
+ *  Returns:
+ *    Pointer to a newly allocated ossyslinkbase structure (in host memory)
+ *    or NULL on failure.
+ * --------------------------------------------------------------------------- */
 static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 {
 	SLB;
@@ -87,11 +126,23 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 }
 
 /* ---------------------------------------------------------------------------
-
-   STANDARD FUNCTIONS
-
+   STANDARD FUNCTIONS (AmigaOS)
    --------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+ * ossyslinklib_init()
+ *
+ *  Initializes the library when it is first created.
+ *  Creates a new library node in system memory using MakeLibrary(),
+ *  adds it to Exec’s library list with AddLibrary(),
+ *  and allocates a memory block to represent its base.
+ *
+ *  Parameters:
+ *    ctx - Trap execution context
+ *
+ *  Returns:
+ *    0 (no return value is used by the autoinit system)
+ * --------------------------------------------------------------------------- */
 static uae_u32 REGPARAM2 ossyslinklib_init (TrapContext *ctx)
 {
   TCHAR verStr[32];
@@ -133,6 +184,19 @@ static uae_u32 REGPARAM2 ossyslinklib_init (TrapContext *ctx)
   return 0;
 }
 
+/* ---------------------------------------------------------------------------
+ * ossyslinklib_Open()
+ *
+ *  Handles OpenLibrary() calls from AmigaOS clients.
+ *  Creates a new per-task base using alloc_ossyslinkbase()
+ *  and increments the library’s open count.
+ *
+ *  Parameters:
+ *    ctx - Trap execution context
+ *
+ *  Returns:
+ *    Result pointer (unused in this early stub version)
+ * --------------------------------------------------------------------------- */
 static uae_u32 REGPARAM2 ossyslinklib_Open (TrapContext *ctx)
 {
 	uae_u32 result = 0;
@@ -164,6 +228,12 @@ static uae_u32 REGPARAM2 ossyslinklib_Open (TrapContext *ctx)
   return result;
 }
 
+/* ---------------------------------------------------------------------------
+ * ossyslinklib_Close()
+ *
+ *  Handles CloseLibrary() calls.
+ *  Currently does not free any task state — acts as a stub.
+ * --------------------------------------------------------------------------- */
 static uae_u32 REGPARAM2 ossyslinklib_Close (TrapContext *ctx)
 {
   write_log(_T("Close OSSYSLINK.library 0.1\n"));
@@ -172,6 +242,12 @@ static uae_u32 REGPARAM2 ossyslinklib_Close (TrapContext *ctx)
 	return 0;
 }
 
+/* ---------------------------------------------------------------------------
+ * ossyslinklib_Expunge()
+ *
+ *  Handles ExpungeLibrary() calls.
+ *  Currently ignored as the library is resident for the emulator lifetime.
+ * --------------------------------------------------------------------------- */
 static uae_u32 REGPARAM2 ossyslinklib_Expunge (TrapContext *ctx)
 {
   write_log(_T("Expunge OSSYSLINK.library 0.1\n"));
@@ -181,32 +257,43 @@ static uae_u32 REGPARAM2 ossyslinklib_Expunge (TrapContext *ctx)
 }
 
 /* ---------------------------------------------------------------------------
-
-   OSSYSLINK Library FUNCTIONS
-
+   OSSYSLINK LIBRARY FUNCTIONS
    --------------------------------------------------------------------------- */
 
 /* WHAT NONE ! REALLY ! YUP NONE, WE'RE STILL IN BUILD MODE THAT'S WHY DUMMY !! */
 
+/* Table of exported trap functions */
 static const TrapHandler ossyslink_funcs[] = {
+  /* Standard Support Functionality */
 	ossyslinklib_init,
   ossyslinklib_Open,
   ossyslinklib_Close,
   ossyslinklib_Expunge
+  /* Everything past this point, I presume/should be custom stuff */
 };
 
+/* Function names for debugging */
 static const TCHAR * const funcnames[] = {
+  /* Standard Support Functionality */
 	_T("ossyslinklib_init"),
   _T("ossyslinklib_Open"),
   _T("ossyslinklib_Close"),
   _T("ossyslinklib_Expunge")
+  /* Everything past this point, I presume/should be custom stuff */
 };
 
 static uae_u32 ossyslink_funcvecs[sizeof (ossyslink_funcs) / sizeof (*ossyslink_funcs)];
 
-/*
- * Amiga Reboots
- */
+/* ---------------------------------------------------------------------------
+   EMULATION FUNCTIONS
+   --------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+ * ossyslinklib_reset()
+ *
+ *  Called when the Amiga is reset or the emulator reboots.
+ *  Resets the global base and releases any residual state.
+ * --------------------------------------------------------------------------- */
 void ossyslinklib_reset(void)
 {
 
@@ -221,9 +308,20 @@ void ossyslinklib_reset(void)
   write_log (_T("OSSYSLINK: cleanup finished\n"));  
 }
 
-/*
- * Amiga Startup
- */
+/* ---------------------------------------------------------------------------
+ * ossyslinklib_startup()
+ *
+ *  Called during autoconfiguration to place the resident module header.
+ *  Writes a proper Resident structure at resaddr so that Exec can identify
+ *  and initialize the library automatically.
+ *
+ *  Parameters:
+ *    ctx     - Trap context
+ *    resaddr - Address in memory to place the Resident structure
+ *
+ *  Returns:
+ *    Updated resaddr (next free position)
+ * --------------------------------------------------------------------------- */
 uaecptr ossyslinklib_startup(TrapContext *ctx, uaecptr resaddr)
 {
   /* ?! one someday we might put it as preferences setting maybe !?
@@ -247,9 +345,13 @@ uaecptr ossyslinklib_startup(TrapContext *ctx, uaecptr resaddr)
   return resaddr;
 }
 
-/*
- * Installs into the System
- */
+/* ---------------------------------------------------------------------------
+ * ossyslinklib_install()
+ *
+ *  Installs the library into the UAE trap system.
+ *  Defines all trap entry points, builds the function and data tables,
+ *  and registers the resident module.
+ * --------------------------------------------------------------------------- */
 void ossyslinklib_install(void)
 {
 	int i;
