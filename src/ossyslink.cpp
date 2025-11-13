@@ -260,6 +260,12 @@ static uae_u32 REGPARAM2 ossyslinklib_Expunge (TrapContext *ctx)
    OSSYSLINK LIBRARY FUNCTIONS
    --------------------------------------------------------------------------- */
 
+/* Basic Hello World for now */
+static uae_u32 REGPARAM2 ossyslinklib_HostRun(TrapContext *ctx) {
+  write_log(_T("ossyslink: Basic, Hello World\n"));
+  return 0;
+}
+
 /* WHAT NONE ! REALLY ! YUP NONE, WE'RE STILL IN BUILD MODE THAT'S WHY DUMMY !! */
 
 /* Table of exported trap functions */
@@ -268,8 +274,8 @@ static const TrapHandler ossyslink_funcs[] = {
 	ossyslinklib_init,
   ossyslinklib_Open,
   ossyslinklib_Close,
-  ossyslinklib_Expunge
-  /* Everything past this point, I presume/should be custom stuff */
+  ossyslinklib_Expunge, /* Everything past this point, I presume/should be custom stuff */  
+  ossyslinklib_HostRun
 };
 
 /* Function names for debugging */
@@ -278,8 +284,9 @@ static const TCHAR * const funcnames[] = {
 	_T("ossyslinklib_init"),
   _T("ossyslinklib_Open"),
   _T("ossyslinklib_Close"),
-  _T("ossyslinklib_Expunge")
-  /* Everything past this point, I presume/should be custom stuff */
+  _T("ossyslinklib_Expunge"), /* Everything past this point, I presume/should be custom stuff */
+  _T("ossyslinklib_HostRun")
+  
 };
 
 static uae_u32 ossyslink_funcvecs[sizeof (ossyslink_funcs) / sizeof (*ossyslink_funcs)];
@@ -368,12 +375,18 @@ void ossyslinklib_install(void)
 	/* FuncTable */
 	functable = here ();
 	for (i = 1; i < 4; i++)
+  {
+    write_log (_T("ossyslink: Standard Library Function Vectors [%+d]\n"),ossyslink_funcvecs[i]);
 		dl (ossyslink_funcvecs[i]);	/* Open / Close / Expunge */
+  }
 
 	dl (EXPANSION_nullfunc);	/* Null */
 
-	for (i = 4; i < (int) (sizeof (ossyslink_funcs) / sizeof (ossyslink_funcs[0])); i++)
+	for (i = 4; i < (int) (sizeof (ossyslink_funcs) / sizeof (ossyslink_funcs[0])); i++) {
+    write_log (_T("ossyslink: User Function Vectors [%+d]\n"),ossyslink_funcvecs[i]);
 		dl (ossyslink_funcvecs[i]);
+  }
+
 
 	dl (0xFFFFFFFF);		/* end of table */
 
