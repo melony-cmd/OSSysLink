@@ -125,6 +125,10 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 	return NULL;
 }
 
+static void free_ossyslinkbase (TrapContext *ctx) 
+{
+  return;
+}
 /* ---------------------------------------------------------------------------
    STANDARD FUNCTIONS (AmigaOS)
    --------------------------------------------------------------------------- */
@@ -236,10 +240,22 @@ static uae_u32 REGPARAM2 ossyslinklib_Open (TrapContext *ctx)
  * --------------------------------------------------------------------------- */
 static uae_u32 REGPARAM2 ossyslinklib_Close (TrapContext *ctx)
 {
-  write_log(_T("Close OSSYSLINK.library 0.1\n"));
+	int opencount;
 
-  write_log(_T("Expunge() -> [ignored]\n"));
-	return 0;
+	uae_u32 base = trap_get_areg(ctx, 6);
+	uae_u32 negsize = get_word (base + 16);
+
+	free_ossyslinkbase(ctx);
+
+	trap_put_word(ctx, OSSysLinkLibBase + 32, opencount = trap_get_word(ctx, OSSysLinkLibBase + 32) - 1);
+
+	trap_call_add_areg(ctx, 1, base - negsize);
+	trap_call_add_dreg(ctx, 0, negsize + trap_get_word(ctx, base + 18));
+	trap_call_lib(ctx, trap_get_long(ctx, 4), -0xD2); /* FreeMem */
+
+	OSLTRACE ((_T("CloseLibrary() -> [%d]\n"), opencount));
+  
+  return 0;
 }
 
 /* ---------------------------------------------------------------------------
