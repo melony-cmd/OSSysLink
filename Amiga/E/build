@@ -2,3 +2,4 @@ delete ossyslink.m
 pragma2module pragma_ossyslink
 rename pragma_ossyslink.m ossyslink.m
 evo test_ossyslink
+copy test_ossyslink install:ossyslink

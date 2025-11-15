@@ -46,6 +46,37 @@ Filename: cmake/SourceFiles.cmake
 
 Only in A: src/ossyslink.cpp
 --------------------------------------------------------------------------------
+Filename: src/bsdsocket.cpp
+--------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/src/bsdsocket.cpp
++++ /home/inner/Source/amiberry-7.1.1.zip/src/bsdsocket.cpp
+@@ -1979,12 +1979,6 @@
+ 		dl (sockfuncvecs[i]);
+
+ 	dl (0xFFFFFFFF);		/* end of table */
+
+ 
+
+-	int count = sizeof(funcnames) / sizeof(funcnames[0]);
+
+-  for (int i = 0; i < count; i++) {
+
+-    uae_u32 amiga_offset = i * 6;   /*-> this is the real LVO offset*/
+
+-    write_log(_T("bsdsocket: %s => %08X => %d(%08X)\n"),funcnames[i],sockfuncvecs[i],amiga_offset,amiga_offset);
+
+-  }
+
+-
+
+ 	/* DataTable */
+
+ 	datatable = here ();
+
+ 	dw (0xE000);		/* INITBYTE */
+
+
+--------------------------------------------------------------------------------
 Filename: src/devices.cpp
 --------------------------------------------------------------------------------
 --- /home/inner/Source/amiberry_v7.1.1/src/devices.cpp

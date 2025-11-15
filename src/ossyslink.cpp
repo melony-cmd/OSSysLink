@@ -126,6 +126,25 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 }
 
 /* ---------------------------------------------------------------------------
+ * get_ossyslinkbase()
+ *
+ *  Retrieves the per-task OSSysLinkBase structure associated with the given
+ *  trap context. This structure stores task-specific context, descriptor
+ *  tables, and other relevant runtime information.
+ *
+ *  Parameters:
+ *    ctx - Trap execution context
+ *
+ *  Returns:
+ *    Pointer to the ossyslinkbase structure corresponding to the current
+ *    task. The pointer is cast to `struct syslinkbase*`.
+ * --------------------------------------------------------------------------- */
+STATIC_INLINE struct syslinkbase *get_ossyslinkbase (TrapContext *ctx)
+{
+	return (struct syslinkbase*)get_pointer (trap_get_areg(ctx, 6) + offsetof (struct UAEOSSYSLINKBase, slb));
+}
+
+/* ---------------------------------------------------------------------------
  * free_ossyslinkbase()
  *
  *  Releases a per-task OSSysLinkBase structure previously allocated by
@@ -134,11 +153,7 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
  *  used to track active bases.
  *
  *  NOTE:
- *    Currently this function is a stub and performs no cleanup. It must be
- *    expanded to:
  *      - Free dtable and ftable arrays
- *      - Release any allocated signals via FreeSignal()
- *      - Remove the entry from the global ossyslinkbase linked list
  *      - Free the ossyslinkbase structure itself
  *
  *  Parameters:
@@ -149,6 +164,15 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
  * --------------------------------------------------------------------------- */
 static void free_ossyslinkbase (TrapContext *ctx) 
 {
+	struct syslinkbase *slb;
+
+	if ((slb = get_ossyslinkbase(ctx)) != NULL){
+		free (slb->dtable);
+		free (slb->ftable);
+	
+		free (slb);
+	}
+
   return;
 }
  
@@ -432,9 +456,8 @@ void ossyslinklib_install(void)
   int count = sizeof(funcnames) / sizeof(funcnames[0]);
 
   for (int i = 0; i < count; i++) {
-    uae_u32 amiga_offset = i * 4;   /*-> this is the real LVO offset*/
-
-    write_log(_T("ossyslink: %s => %08X => %d(%08X)\n"),funcnames[i],ossyslink_funcvecs[i],amiga_offset,amiga_offset);
+    uae_u32 amiga_offset = i * 6;   /*-> this is the real LVO offset*/
+    write_log(_T("ossyslink: %s => (%d) %08X => %d(%08X)\n"),funcnames[i],ossyslink_funcvecs[i],ossyslink_funcvecs[i],amiga_offset,amiga_offset);
   }
 
 	/* DataTable */
