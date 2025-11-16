@@ -7,6 +7,16 @@
  *
  * Version: 0.1
  * Author: Tim Roughton (OSSysLink)
+ * 
+ * At this point I consider this code broken, it's not opening Host_Run() it's
+ * expunging the instant the function is called, it being call from the correct
+ * offset, unless AmigaE is doing something funky with the pragma file.
+ * 
+ * So a complete rewrite is in order :( how? copy bsdsocket.library in full and
+ * complete and gut the thing one line at at time, one function at a time.
+ * 
+ * Because writting this using bsdsocket.library as inspiration clearly isn't
+ * working.
  *
  * --------------------------------------------------------------------------- */
 
@@ -26,7 +36,7 @@
    --------------------------------------------------------------------------- */
 
 int log_osl = 0;
-struct syslinkbase *ossyslinkbase;
+struct ossyslinkbase *ossyslinkbase;
 static uae_u32 OSSysLinkLibBase;
 
 static uae_u32 res_name, res_id, res_init;
@@ -86,43 +96,43 @@ static uae_u32 gettask (TrapContext *ctx)
  *    Pointer to a newly allocated ossyslinkbase structure (in host memory)
  *    or NULL on failure.
  * --------------------------------------------------------------------------- */
-static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
+static struct ossyslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 {
-	SLB;
+	OSLB;
 	int i;
 
-	if ((slb = xcalloc (struct syslinkbase, 1)) != NULL) {
-		slb->ownertask = gettask(ctx);
-		slb->sysbase = trap_get_long(ctx, 4);
+	if ((oslb = xcalloc (struct ossyslinkbase, 1)) != NULL) {
+		oslb->ownertask = gettask(ctx);
+		oslb->sysbase = trap_get_long(ctx, 4);
 
 		trap_call_add_dreg(ctx, 0, -1);
-		slb->signal = trap_call_lib(ctx, slb->sysbase, -0x14A); /* AllocSignal */
+		oslb->signal = trap_call_lib(ctx, oslb->sysbase, -0x14A); /* AllocSignal */
 
-		if (slb->signal == -1) {
-			write_log (_T("ossyslink: ERROR: Couldn't allocate signal for task 0x%08x.\n"), slb->ownertask);
-			free (slb);
+		if (oslb->signal == -1) {
+			write_log (_T("ossyslink: ERROR: Couldn't allocate signal for task 0x%08x.\n"), oslb->ownertask);
+			free (oslb);
 			return NULL;
 		}
 
-		slb->dtablesize = DEFAULT_DTABLE_SIZE;
-		slb->dtable = xmalloc(int, slb->dtablesize);
-		slb->ftable = xcalloc(int, slb->dtablesize);
+		oslb->dtablesize = DEFAULT_DTABLE_SIZE;
+		oslb->dtable = xmalloc(int, oslb->dtablesize);
+		oslb->ftable = xcalloc(int, oslb->dtablesize);
 
-		for (i = slb->dtablesize; i--;) {
-			slb->dtable[i] = -1;
-			slb->ftable[i] = 0;
+		for (i = oslb->dtablesize; i--;) {
+			oslb->dtable[i] = -1;
+			oslb->ftable[i] = 0;
 		}
 
-		slb->eintrsigs = 0x1000; /* SIGBREAKF_CTRL_C */
+		oslb->eintrsigs = 0x1000; /* SIGBREAKF_CTRL_C */
 
-		slb->logfacility = 1 << 3; /* LOG_USER */
-		slb->logmask = 0xff;
+		oslb->logfacility = 1 << 3; /* LOG_USER */
+		oslb->logmask = 0xff;
 
     if (ossyslinkbase)
-			slb->next = ossyslinkbase;
-		ossyslinkbase = slb;
+			oslb->next = ossyslinkbase;
+		ossyslinkbase = oslb;
 
-		return slb;
+		return oslb;
 	}
 	return NULL;
 }
@@ -141,9 +151,9 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
  *    Pointer to the ossyslinkbase structure corresponding to the current
  *    task. The pointer is cast to `struct syslinkbase*`.
  * --------------------------------------------------------------------------- */
-STATIC_INLINE struct syslinkbase *get_ossyslinkbase (TrapContext *ctx)
+STATIC_INLINE struct ossyslinkbase *get_ossyslinkbase (TrapContext *ctx)
 {
-	return (struct syslinkbase*)get_pointer (trap_get_areg(ctx, 6) + offsetof (struct UAEOSSYSLINKBase, slb));
+	return (struct ossyslinkbase*)get_pointer (trap_get_areg(ctx, 6) + offsetof (struct UAEOSSYSLINKBase, oslb));
 }
 
 /* ---------------------------------------------------------------------------
@@ -166,13 +176,13 @@ STATIC_INLINE struct syslinkbase *get_ossyslinkbase (TrapContext *ctx)
  * --------------------------------------------------------------------------- */
 static void free_ossyslinkbase (TrapContext *ctx) 
 {
-	struct syslinkbase *slb;
+	struct ossyslinkbase *oslb;
 
-	if ((slb = get_ossyslinkbase(ctx)) != NULL){
-		free (slb->dtable);
-		free (slb->ftable);
+	if ((oslb = get_ossyslinkbase(ctx)) != NULL){
+		free (oslb->dtable);
+		free (oslb->ftable);
 	
-		free (slb);
+		free (oslb);
 	}
 
   return;
@@ -254,12 +264,12 @@ static uae_u32 REGPARAM2 ossyslinklib_Open (TrapContext *ctx)
 {
 	uae_u32 result = 0;
 	int opencount;
-	SLB;
+	OSLB;
 
   write_log(_T("Open OSSYSLINK.library 0.1\n"));
 
- 	if ((slb = alloc_ossyslinkbase(ctx)) != NULL) {
-    OSLTRACE((_T("alloc_ossyslinkbase() successful. [%d]\n"),slb));                                                       // Appears to have a value at least. 
+ 	if ((oslb = alloc_ossyslinkbase(ctx)) != NULL) {
+    OSLTRACE((_T("alloc_ossyslinkbase() successful. [%d]\n"),oslb));                                                       // Appears to have a value at least. 
     OSLTRACE((_T("OSSysLinkLibBase                  [%d]\n"),OSSysLinkLibBase));                                          // This 'likely' shouldn't be 0
     //OSLTRACE((_T("OC                                [%d]\n"),opencount = trap_get_word(ctx, OSSysLinkLibBase + 32) + 1)); // 249? it's not 1?  count doesn't start from 0? weird.
     
@@ -269,9 +279,9 @@ static uae_u32 REGPARAM2 ossyslinklib_Open (TrapContext *ctx)
 		trap_call_add_areg(ctx, 2, 0);
 		trap_call_add_dreg(ctx, 0, sizeof (struct UAEOSSYSLINKBase));
 		trap_call_add_dreg(ctx, 1, 0);
-		result = trap_call_lib(ctx, slb->sysbase, -0x54);
+		result = trap_call_lib(ctx, oslb->sysbase, -0x54);
 
-		put_pointer(result + offsetof(struct UAEOSSYSLINKBase, slb), slb);
+		put_pointer(result + offsetof(struct UAEOSSYSLINKBase, oslb), oslb);
 
     OSLTRACE ((_T("%0x [%d]\n"), result, opencount));
 	} else {
@@ -328,10 +338,17 @@ static uae_u32 REGPARAM2 ossyslinklib_Expunge (TrapContext *ctx)
 /* Basic Hello World for now */
 static uae_u32 REGPARAM2 ossyslinklib_HostRun(TrapContext *ctx) {
   write_log(_T("ossyslink: Basic, Hello World\n"));
+
+	printf(" ->> ossyslinklib_HostRun()\n");
+
   return 0;
 }
 
-/* WHAT NONE ! REALLY ! YUP NONE, WE'RE STILL IN BUILD MODE THAT'S WHY DUMMY !! */
+static uae_u32 REGPARAM2 ossyslinklib_OSLAllocMem(TrapContext *ctx) {
+	printf(" ->> ossyslinklib_OSLAllocMem()\n");
+
+	return 0;
+}
 
 /* Table of exported trap functions */
 static const TrapHandler ossyslink_funcs[] = {
@@ -340,7 +357,8 @@ static const TrapHandler ossyslink_funcs[] = {
   ossyslinklib_Open,
   ossyslinklib_Close,
   ossyslinklib_Expunge, /* Everything past this point, I presume/should be custom stuff */  
-  ossyslinklib_HostRun
+  ossyslinklib_HostRun,
+	ossyslinklib_OSLAllocMem
 };
  
 /* Function names for debugging */
@@ -350,7 +368,8 @@ static const TCHAR * const funcnames[] = {
   _T("ossyslinklib_Open"),
   _T("ossyslinklib_Close"),
   _T("ossyslinklib_Expunge"), /* Everything past this point, I presume/should be custom stuff */
-  _T("ossyslinklib_HostRun")
+  _T("ossyslinklib_HostRun"),
+	_T("ossyslinklib_OSLAllocMem")
   
 };
 
