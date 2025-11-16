@@ -108,8 +108,10 @@ static struct syslinkbase *alloc_ossyslinkbase (TrapContext *ctx)
 		slb->dtable = xmalloc(int, slb->dtablesize);
 		slb->ftable = xcalloc(int, slb->dtablesize);
 
-		for (i = slb->dtablesize; i--;)
+		for (i = slb->dtablesize; i--;) {
 			slb->dtable[i] = -1;
+			slb->ftable[i] = 0;
+		}
 
 		slb->eintrsigs = 0x1000; /* SIGBREAKF_CTRL_C */
 
@@ -340,7 +342,7 @@ static const TrapHandler ossyslink_funcs[] = {
   ossyslinklib_Expunge, /* Everything past this point, I presume/should be custom stuff */  
   ossyslinklib_HostRun
 };
-
+ 
 /* Function names for debugging */
 static const TCHAR * const funcnames[] = {
   /* Standard Support Functionality */
