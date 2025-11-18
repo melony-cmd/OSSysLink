@@ -19,6 +19,26 @@
  * working.
  *
  * --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   OS INCLUDES
+   --------------------------------------------------------------------------- */
+
+#include <stdio.h>
+#include <string.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_syswm.h>
+#include <SDL.h>
+
+#if defined(SDL_VIDEO_DRIVER_X11)
+  #include <X11/Xlib.h>
+  #include <X11/Xatom.h>
+#endif
+
+#include <unistd.h>
+
+/* ---------------------------------------------------------------------------
+   UAE STANDARD INCLUDES
+   --------------------------------------------------------------------------- */
 
 #include "sysconfig.h"
 #include "sysdeps.h"
@@ -29,6 +49,7 @@
 #include "newcpu.h"
 #include "autoconf.h"
 #include "traps.h"
+#include "amiberry_gfx.h"
 #include "ossyslink.h"
 
 /* ---------------------------------------------------------------------------
@@ -43,6 +64,187 @@ static uae_u32 res_name, res_id, res_init;
 static uae_u32 functable, datatable, inittable;
 
 static uae_sem_t sem_queue;
+
+extern "C" AmigaMonitor* gfx_get_monitor(int idx);
+
+/* ---------------------------------------------------------------------------
+   EMULATION MAPPED SUPPORT FUNCTIONS (PRIVATE CURRENTLY)
+   --------------------------------------------------------------------------- */
+#include <string>
+#include <cstdint>
+
+// --- Key type ---
+enum KeyType { KEY_STRING, KEY_INT };
+
+struct MapNode {
+    KeyType type;
+    std::string keyStr;
+    uintptr_t keyInt;
+    uintptr_t value;
+    MapNode *next;
+};
+
+struct Map {
+    size_t size;
+    size_t count;
+    MapNode **buckets;
+};
+
+// --- Hash a string ---
+static size_t HashString(const std::string &key, size_t size) {
+    size_t h = 5381;
+    for (char c : key) h = ((h << 5) + h) + static_cast<unsigned char>(c);
+    return h % size;
+}
+
+// --- Hash an integer key ---
+static size_t HashInt(uintptr_t v, size_t size) {
+    v = (v ^ (v >> 33)) * 0xff51afd7ed558ccdULL;
+    v = (v ^ (v >> 33)) * 0xc4ceb9fe1a85ec53ULL;
+    v =  v ^ (v >> 33);
+    return v % size;
+}
+
+// --- Create map ---
+Map* NewMap() {
+    Map *map = new Map;
+    map->size = 16;
+    map->count = 0;
+    map->buckets = new MapNode*[map->size]();
+    return map;
+}
+
+// --- Add string key ---
+void AddMapElement(Map *map, const std::string &key, uintptr_t value) {
+    size_t index = HashString(key, map->size);
+
+    MapNode *node = map->buckets[index];
+    while (node) {
+        if (node->type == KEY_STRING && node->keyStr == key) {
+            node->value = value;
+            return;
+        }
+        node = node->next;
+    }
+
+    MapNode *newNode = new MapNode;
+    newNode->type = KEY_STRING;
+    newNode->keyStr = key;
+    newNode->value = value;
+    newNode->next = map->buckets[index];
+    map->buckets[index] = newNode;
+    map->count++;
+}
+
+// --- Add integer key ---
+void AddMapElement(Map *map, uintptr_t key, uintptr_t value) {
+    size_t index = HashInt(key, map->size);
+
+    MapNode *node = map->buckets[index];
+    while (node) {
+        if (node->type == KEY_INT && node->keyInt == key) {
+            node->value = value;
+            return;
+        }
+        node = node->next;
+    }
+
+    MapNode *newNode = new MapNode;
+    newNode->type = KEY_INT;
+    newNode->keyInt = key;
+    newNode->value = value;
+    newNode->next = map->buckets[index];
+    map->buckets[index] = newNode;
+    map->count++;
+}
+
+// --- Delete string key ---
+bool DeleteMapElement(Map *map, const std::string &key) {
+    size_t index = HashString(key, map->size);
+    MapNode *node = map->buckets[index];
+    MapNode *prev = nullptr;
+    while (node) {
+        if (node->type == KEY_STRING && node->keyStr == key) {
+            if (prev) prev->next = node->next;
+            else map->buckets[index] = node->next;
+            delete node;
+            if (map->count > 0) map->count--;
+            return true;
+        }
+        prev = node;
+        node = node->next;
+    }
+    return false;
+}
+
+// --- Delete int key ---
+bool DeleteMapElement(Map *map, uintptr_t key) {
+    size_t index = HashInt(key, map->size);
+    MapNode *node = map->buckets[index];
+    MapNode *prev = nullptr;
+    while (node) {
+        if (node->type == KEY_INT && node->keyInt == key) {
+            if (prev) prev->next = node->next;
+            else map->buckets[index] = node->next;
+            delete node;
+            if (map->count > 0) map->count--;
+            return true;
+        }
+        prev = node;
+        node = node->next;
+    }
+    return false;
+}
+
+// --- Lookup string ---
+bool MapKey(Map *map, const std::string &key, uintptr_t &out) {
+    size_t index = HashString(key, map->size);
+    MapNode *node = map->buckets[index];
+
+    while (node) {
+        if (node->type == KEY_STRING && node->keyStr == key) {
+            out = node->value;
+            return true;
+        }
+        node = node->next;
+    }
+  return false;
+}
+
+// --- Lookup integer ---
+bool MapKey(Map *map, uintptr_t key, uintptr_t &out) {
+    size_t index = HashInt(key, map->size);
+    MapNode *node = map->buckets[index];
+
+    while (node) {
+        if (node->type == KEY_INT && node->keyInt == key) {
+            out = node->value;
+            return true;
+        }
+        node = node->next;
+    }
+    return false;
+}
+
+// --- Free ---
+void FreeMap(Map *map) {
+    if (!map) return;
+    for (size_t i = 0; i < map->size; ++i) {
+        MapNode *node = map->buckets[i];
+        while (node) {
+            MapNode *next = node->next;
+            delete node;
+            node = next;
+        }
+    }
+    delete[] map->buckets;
+    map->buckets = nullptr;
+    map->count = 0;    // defensive, not required
+    map->size = 0;     // defensive
+    delete map;
+}
+
+Map *memory_table = NewMap();
 
 /* ---------------------------------------------------------------------------
    EMULATION SUPPORT FUNCTIONS
@@ -187,7 +389,24 @@ static void free_ossyslinkbase (TrapContext *ctx)
 
   return;
 }
- 
+
+static bool get_x11_handles(SDL_Window* win, Display** dpy_out, Window* win_out)
+{
+    SDL_SysWMinfo info;
+    SDL_VERSION(&info.version);
+
+    if (!SDL_GetWindowWMInfo(win, &info))
+        return false;
+
+    if (info.subsystem != SDL_SYSWM_X11)
+        return false;
+
+    *dpy_out = info.info.x11.display;
+    *win_out = info.info.x11.window;
+
+    return true;
+}
+
 /* ---------------------------------------------------------------------------
    STANDARD FUNCTIONS (AmigaOS)
    --------------------------------------------------------------------------- */
@@ -335,20 +554,136 @@ static uae_u32 REGPARAM2 ossyslinklib_Expunge (TrapContext *ctx)
    OSSYSLINK LIBRARY FUNCTIONS
    --------------------------------------------------------------------------- */
 
-/* Basic Hello World for now */
-static uae_u32 REGPARAM2 ossyslinklib_HostRun(TrapContext *ctx) {
-  write_log(_T("ossyslink: Basic, Hello World\n"));
+/* Run Command on Host Machine */
+static uae_u32 REGPARAM2 ossyslinklib_OSLHostRun(TrapContext *ctx) {
+	pid_t pid = fork();
 
-	printf(" ->> ossyslinklib_HostRun()\n");
+	struct ossyslinkbase *oslb = get_ossyslinkbase(ctx);
+	uaecptr strptr = trap_get_dreg(ctx,0);  // MOVE THIS TO A D0 REGISTER YOU ASSHOLE!
+
+	printf(" ->> HostRun()\n");
+
+	char buf[256];
+	int i = 0;
+
+	for (;;) {
+		uae_u8 c = get_byte(strptr+i);
+		if (c==0 || i>=sizeof(buf)-1)
+			break;
+		buf[i++] = c;
+	}
+	buf[i] = 0;
+
+
+	if(pid == 0) {
+		char *args[] = {buf , NULL};
+		execvp(args[0], args);
+	}
+
+	printf(" ->> Run ('%s' @ PID=%d)\n",buf,pid);
 
   return 0;
 }
 
+// The Memory AmigaOS knows nothing about, so can be considered 'protected' memory.
 static uae_u32 REGPARAM2 ossyslinklib_OSLAllocMem(TrapContext *ctx) {
 	printf(" ->> ossyslinklib_OSLAllocMem()\n");
+	uae_u32 reqkey = trap_get_dreg(ctx,0);
+	uae_u32 memsize32 = trap_get_dreg(ctx,1);
+	uintptr_t out;
+	size_t  memsize64bit = (size_t) memsize32;
 
-	return 0;
+	if(MapKey(memory_table, reqkey, out)) {
+		printf("Key already exists\n");
+		return OSL_INVALID_KEY;
+	} else {
+		void *memptr = malloc(memsize64bit);
+		AddMapElement(memory_table,reqkey,reinterpret_cast<uintptr_t>(memptr));
+
+		printf("Allocate(%llu)\n",memsize32);
+		printf("memptr = (%llu)\n",memptr);
+		printf("mapping\n");
+	}
+
+	return reqkey;
 }
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLFreeMem(TrapContext *ctx) {
+    printf(" ->> ossyslinklib_OSLFreeMem()\n");
+
+    uae_u32 key = trap_get_areg(ctx, 0);
+    uintptr_t memptr = 0;
+
+    if (!MapKey(memory_table, key, memptr)) {
+        printf("OSLFreeMem ERROR: key %u not found!\n", key);
+        return 0;   // AmigaOS doesn't get to crash because of it :)
+    }
+
+    free(reinterpret_cast<void*>(memptr));
+
+    DeleteMapElement(memory_table, key);
+
+    printf("Memory at key %u freed successfully.\n", key);
+    return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLWriteMem(TrapContext *ctx) {
+  return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLReadMem(TrapContext *ctx) {
+  return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLCopyMem(TrapContext *ctx) {
+  return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLInsertDisk(TrapContext *ctx) {
+  return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLEjectDisk(TrapContext *ctx) {
+  return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLForceWindowBackground(TrapContext *ctx) {
+  AmigaMonitor *mon = gfx_get_monitor(0);
+
+  SDL_Window *win = mon->amiga_window;
+  Display* dpy;
+  Window xwin;
+
+  if (!get_x11_handles(win, &dpy, &xwin))
+    return False;
+
+  printf("Setting _NET_WM_STATE & _NET_WM_STATE_BELOW\n");
+  Atom wmState = XInternAtom(dpy, "_NET_WM_STATE", False);
+  Atom wmStateBelow = XInternAtom(dpy, "_NET_WM_STATE_BELOW", False);
+
+  XEvent e;
+  memset(&e, 0, sizeof(e));
+
+  e.xclient.type = ClientMessage;
+  e.xclient.serial = 0;
+  e.xclient.send_event = True;
+  e.xclient.window = xwin;
+  e.xclient.message_type = wmState;
+  e.xclient.format = 32;
+  e.xclient.data.l[0] = 1;        /* _NET_WM_STATE_ADD */
+  e.xclient.data.l[1] = wmStateBelow;
+  e.xclient.data.l[2] = 0;
+  e.xclient.data.l[3] = 1;
+
+  XSendEvent(dpy,DefaultRootWindow(dpy),False,SubstructureRedirectMask | SubstructureNotifyMask,&e);
+
+  XSetInputFocus(dpy, PointerRoot, RevertToNone, CurrentTime);
+
+  XFlush(dpy);
+
+  return 0;
+}
+
 
 /* Table of exported trap functions */
 static const TrapHandler ossyslink_funcs[] = {
@@ -357,8 +692,15 @@ static const TrapHandler ossyslink_funcs[] = {
   ossyslinklib_Open,
   ossyslinklib_Close,
   ossyslinklib_Expunge, /* Everything past this point, I presume/should be custom stuff */  
-  ossyslinklib_HostRun,
-	ossyslinklib_OSLAllocMem
+  ossyslinklib_OSLHostRun,
+	ossyslinklib_OSLAllocMem,
+	ossyslinklib_OSLFreeMem,
+  ossyslinklib_OSLWriteMem,
+	ossyslinklib_OSLReadMem,
+	ossyslinklib_OSLCopyMem,
+	ossyslinklib_OSLInsertDisk,
+	ossyslinklib_OSLEjectDisk,
+	ossyslinklib_OSLForceWindowBackground
 };
  
 /* Function names for debugging */
@@ -368,9 +710,15 @@ static const TCHAR * const funcnames[] = {
   _T("ossyslinklib_Open"),
   _T("ossyslinklib_Close"),
   _T("ossyslinklib_Expunge"), /* Everything past this point, I presume/should be custom stuff */
-  _T("ossyslinklib_HostRun"),
-	_T("ossyslinklib_OSLAllocMem")
-  
+  _T("ossyslinklib_OSLHostRun"),
+	_T("ossyslinklib_OSLAllocMem"),
+	_T("ossyslinklib_OSLFreeMem"),
+  _T("ossyslinklib_OSLWriteMem"),
+	_T("ossyslinklib_OSLReadMem"),
+	_T("ossyslinklib_OSLCopyMem"),
+	_T("ossyslinklib_OSLInsertDisk"),
+  _T("ossyslinklib_OSLEjectDisk"),
+  _T("ossyslinklib_OSLForceWindowBackground")
 };
 
 static uae_u32 ossyslink_funcvecs[sizeof (ossyslink_funcs) / sizeof (*ossyslink_funcs)];

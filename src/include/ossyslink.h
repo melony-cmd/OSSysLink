@@ -13,6 +13,7 @@
 #include "uae/types.h"
 #include "traps.h"
 
+#define OSL_INVALID_KEY -1
 #define OSL_TRACING_ENABLED 1
 
 extern int log_osl;

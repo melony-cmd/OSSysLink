@@ -1,5 +1,6 @@
+flushcache
 delete ossyslink.m
-pragma2module pragma_ossyslink
+p2m pragma_ossyslink
 rename pragma_ossyslink.m ossyslink.m
 showmodule ossyslink.m
 evo test_ossyslink

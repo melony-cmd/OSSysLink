@@ -1,3 +1,42 @@
+Only in A: CMakeFiles
+--------------------------------------------------------------------------------
+Filename: cmake/Dependencies.cmake
+--------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/cmake/Dependencies.cmake
++++ /home/inner/Source/amiberry-7.1.1.zip/cmake/Dependencies.cmake
+@@ -28,8 +28,6 @@
+ find_package(mpg123 REQUIRED)
+
+ find_package(PNG REQUIRED)
+
+ find_package(ZLIB REQUIRED)
+
+-# X11
+
+-find_package(X11 REQUIRED)
+
+ 
+
+ if (USE_ZSTD)
+
+     target_compile_definitions(${PROJECT_NAME} PRIVATE USE_ZSTD)
+
+@@ -99,7 +97,6 @@
+         z
+
+         pthread
+
+         dl
+
+-        X11
+
+ )
+
+ 
+
+ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+
+
 --------------------------------------------------------------------------------
 Filename: cmake/SourceFiles.cmake
 --------------------------------------------------------------------------------
@@ -50,7 +89,69 @@ Filename: src/bsdsocket.cpp
 --------------------------------------------------------------------------------
 --- /home/inner/Source/amiberry_v7.1.1/src/bsdsocket.cpp
 +++ /home/inner/Source/amiberry-7.1.1.zip/src/bsdsocket.cpp
-@@ -1979,12 +1979,6 @@
+@@ -457,20 +457,18 @@
+ 			trap_call_lib(ctx, sb->sysbase, -0xD2); /* FreeMem */
+
+ 
+
+ 		}
+
+-
+
+ 		if (sb->protoent) {
+
+ 			trap_call_add_areg(ctx, 1, sb->protoent);
+
+ 			trap_call_add_dreg(ctx, 0, sb->protoentsize);
+
+ 			trap_call_lib(ctx, sb->sysbase, -0xD2); /* FreeMem */
+
+-		}
+
+-
+
++
+
++		}
+
+ 		if (sb->servent) {
+
+ 			trap_call_add_areg(ctx, 1, sb->servent);
+
+ 			trap_call_add_dreg(ctx, 0, sb->serventsize);
+
+ 			trap_call_lib(ctx, sb->sysbase, -0xD2); /* FreeMem */
+
+ 
+
+ 		}
+
+-
+
+ 		host_sbcleanup (sb);
+
+ 
+
+ 		free (sb->dtable);
+
+@@ -564,7 +562,7 @@
+ 	return 0;
+
+ }
+
+ 
+
+-/* socket(domain, type, protocol)(d0/d1/d2) bsdsocket: bsdsocklib_socket => 00F041E6 => 24 (00000018) */
+
++/* socket(domain, type, protocol)(d0/d1/d2) */
+
+ static uae_u32 REGPARAM2 bsdsocklib_socket (TrapContext *ctx)
+
+ {
+
+ 	struct socketbase *sb = get_socketbase (ctx);
+
+@@ -1981,12 +1979,6 @@
  		dl (sockfuncvecs[i]);
 
  	dl (0xFFFFFFFF);		/* end of table */
@@ -174,6 +275,41 @@ Filename: src/filesys.cpp
 
 
 Only in A: src/include/ossyslink.h
+--------------------------------------------------------------------------------
+Filename: src/osdep/amiberry_gfx.cpp
+--------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/src/osdep/amiberry_gfx.cpp
++++ /home/inner/Source/amiberry-7.1.1.zip/src/osdep/amiberry_gfx.cpp
+@@ -116,14 +116,6 @@
+ 
+
+ static SDL_mutex* screen_cs = nullptr;
+
+ static bool screen_cs_allocated;
+
+-
+
+-extern "C" {
+
+-	AmigaMonitor* gfx_get_monitor(int idx)
+
+-	{
+
+-		return &AMonitors[idx];
+
+-	}
+
+-
+
+-}
+
+ 
+
+ /* If we have to lock the SDL surface, then we remember the address
+
+  * of its pixel data - and recalculate the row maps only when this
+
+
 --------------------------------------------------------------------------------
 Filename: src/osdep/sysconfig.h
 --------------------------------------------------------------------------------
