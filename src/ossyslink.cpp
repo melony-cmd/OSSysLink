@@ -51,6 +51,7 @@
 #include "traps.h"
 #include "amiberry_gfx.h"
 #include "ossyslink.h"
+#include "ossyslinkinternals.h"
 
 /* ---------------------------------------------------------------------------
    GLOBAL
@@ -64,8 +65,11 @@ static uae_u32 res_name, res_id, res_init;
 static uae_u32 functable, datatable, inittable;
 
 static uae_sem_t sem_queue;
+static uae_u32 osl_forcewindowbackground (void);
 
+static uae_u32 osl_forcewindowbackground (void);
 extern "C" AmigaMonitor* gfx_get_monitor(int idx);
+extern "C" void osl_forcewindowbackground_cxx(void) { osl_forcewindowbackground(); };
 
 /* ---------------------------------------------------------------------------
    EMULATION MAPPED SUPPORT FUNCTIONS (PRIVATE CURRENTLY)
@@ -551,7 +555,7 @@ static uae_u32 REGPARAM2 ossyslinklib_Expunge (TrapContext *ctx)
 }
 
 /* ---------------------------------------------------------------------------
-   OSSYSLINK LIBRARY FUNCTIONS
+   OSSYSLINK LIBRARY FUNCTIONS IO
    --------------------------------------------------------------------------- */
 
 /* Run Command on Host Machine */
@@ -628,11 +632,34 @@ static uae_u32 REGPARAM2 ossyslinklib_OSLFreeMem(TrapContext *ctx) {
 }
 
 static uae_u32 REGPARAM2 ossyslinklib_OSLWriteMem(TrapContext *ctx) {
-  return 0;
+  uae_u32 key = trap_get_areg(ctx, 0);
+  uae_u32 data = trap_get_dreg(ctx, 0);
+  uae_u32 offset = trap_get_dreg(ctx, 1);
+  uintptr_t memptr = 0;
+
+  if (!MapKey(memory_table, key, memptr)) {
+    printf("Write ERROR: key %u not found!\n", key);
+    return FALSE;
+  }
+
+  printf("Attempt write (%d) into (%d)\n",data,memptr);
+
+  return TRUE;
 }
 
 static uae_u32 REGPARAM2 ossyslinklib_OSLReadMem(TrapContext *ctx) {
-  return 0;
+  uae_u32 key = trap_get_areg(ctx, 0);
+  uae_u32 data = 0; // technically we don't need this.
+  uae_u32 offset = trap_get_dreg(ctx, 1);
+  uintptr_t memptr = 0;
+
+  if (!MapKey(memory_table, key, memptr)) {
+    printf("Read ERROR: key %u not found!\n", key);
+    return FALSE;   
+  }
+  printf("Attempt read offset (%d) out of (%d)\n",offset,memptr);
+
+  return memptr+offset;
 }
 
 static uae_u32 REGPARAM2 ossyslinklib_OSLCopyMem(TrapContext *ctx) {
@@ -647,7 +674,18 @@ static uae_u32 REGPARAM2 ossyslinklib_OSLEjectDisk(TrapContext *ctx) {
   return 0;
 }
 
-static uae_u32 REGPARAM2 ossyslinklib_OSLForceWindowBackground(TrapContext *ctx) {
+/* ---------------------------------------------------------------------------
+   OSSYSLINK LIBRARY FUNCTIONS UI
+   --------------------------------------------------------------------------- */
+static uae_u32 REGPARAM2 ossyslinklib_OSLForceWindowPatchMouse(TrapContext *ctx) {
+  return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLForceWindowPatchLoop(TrapContext *ctx) {
+  return 0;
+}
+
+static uae_u32 osl_forcewindowbackground (void) {
   AmigaMonitor *mon = gfx_get_monitor(0);
 
   SDL_Window *win = mon->amiga_window;
@@ -680,10 +718,19 @@ static uae_u32 REGPARAM2 ossyslinklib_OSLForceWindowBackground(TrapContext *ctx)
   XSetInputFocus(dpy, PointerRoot, RevertToNone, CurrentTime);
 
   XFlush(dpy);
+  return 0;
+}
+
+static uae_u32 REGPARAM2 ossyslinklib_OSLForceWindowBackground(TrapContext *ctx) {
+
+  osl_forcewindowbackground();
 
   return 0;
 }
 
+/* ---------------------------------------------------------------------------
+   EMULATION FUNCTIONS
+   --------------------------------------------------------------------------- */
 
 /* Table of exported trap functions */
 static const TrapHandler ossyslink_funcs[] = {
@@ -691,17 +738,30 @@ static const TrapHandler ossyslink_funcs[] = {
 	ossyslinklib_init,
   ossyslinklib_Open,
   ossyslinklib_Close,
-  ossyslinklib_Expunge, /* Everything past this point, I presume/should be custom stuff */  
+  ossyslinklib_Expunge,                  /* Everything past this point, I presume/should be custom stuff */  
   ossyslinklib_OSLHostRun,
 	ossyslinklib_OSLAllocMem,
 	ossyslinklib_OSLFreeMem,
   ossyslinklib_OSLWriteMem,
 	ossyslinklib_OSLReadMem,
 	ossyslinklib_OSLCopyMem,
-	ossyslinklib_OSLInsertDisk,
-	ossyslinklib_OSLEjectDisk,
-	ossyslinklib_OSLForceWindowBackground
+	ossyslinklib_OSLInsertDisk,            /* Insert Disk DF0...DF3 */
+	ossyslinklib_OSLEjectDisk,             /* Eject Disk DF0...DF3 */
+  /* 
+     This section is entirely devoted to intergrating the window into the background
+     of which there are many few methods.
+   */
+	ossyslinklib_OSLForceWindowBackground, /* one shot, fire and forget */
+  ossyslinklib_OSLForceWindowPatchMouse, /* consistantly attempts to 'force' the window to background on mouse click events. */
+  ossyslinklib_OSLForceWindowPatchLoop   /* each, loop the window is forced to the background */
 };
+
+/* NB: ossyslinklib_OSLForceWindowPatchMouse & 
+       ossyslinklib_OSLForceWindowPatchLoop 
+
+       Are invasive into the emulation code space, and require editing of the orginal source not that this library
+       doesn't anyway, but this is over and above just simply adding library setup/install etc.
+*/
  
 /* Function names for debugging */
 static const TCHAR * const funcnames[] = {
@@ -718,14 +778,12 @@ static const TCHAR * const funcnames[] = {
 	_T("ossyslinklib_OSLCopyMem"),
 	_T("ossyslinklib_OSLInsertDisk"),
   _T("ossyslinklib_OSLEjectDisk"),
-  _T("ossyslinklib_OSLForceWindowBackground")
+  _T("ossyslinklib_OSLForceWindowBackground"),
+  _T("ossyslinklib_OSLForceWindowPatchMouse"),
+  _T("ossyslinklib_OSLForceWindowPatchLoop")
 };
 
 static uae_u32 ossyslink_funcvecs[sizeof (ossyslink_funcs) / sizeof (*ossyslink_funcs)];
-
-/* ---------------------------------------------------------------------------
-   EMULATION FUNCTIONS
-   --------------------------------------------------------------------------- */
 
 /* ---------------------------------------------------------------------------
  * ossyslinklib_reset()

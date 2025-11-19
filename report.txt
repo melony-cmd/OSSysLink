@@ -275,6 +275,47 @@ Filename: src/filesys.cpp
 
 
 Only in A: src/include/ossyslink.h
+Only in A: src/include/ossyslinkinternals.h
+--------------------------------------------------------------------------------
+Filename: src/osdep/amiberry.cpp
+--------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/src/osdep/amiberry.cpp
++++ /home/inner/Source/amiberry-7.1.1.zip/src/osdep/amiberry.cpp
+@@ -85,9 +85,6 @@
+ #ifdef USE_DBUS
+
+ #include "amiberry_dbus.h"
+
+ #endif
+
+-
+
+-// probably should put an #ifdef around this...
+
+-#include "ossyslinkinternals.h"
+
+ 
+
+ static SDL_threadID mainthreadid;
+
+ static int logging_started;
+
+@@ -1841,7 +1838,6 @@
+ 
+
+ 		case SDL_MOUSEBUTTONDOWN:
+
+ 		case SDL_MOUSEBUTTONUP:
+
+-		 	osl_forcewindowbackground_cxx();
+
+ 			handle_mouse_button_event(event, mon);
+
+ 			break;
+
+ 
+
+
 --------------------------------------------------------------------------------
 Filename: src/osdep/amiberry_gfx.cpp
 --------------------------------------------------------------------------------
