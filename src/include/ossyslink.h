@@ -13,6 +13,7 @@
 #include "uae/types.h"
 #include "traps.h"
 
+#define OSL_FORCE_BACKGWINDOW_THRESHOLD 1000
 #define OSL_INVALID_KEY -1
 #define OSL_TRACING_ENABLED 1
 
@@ -33,6 +34,8 @@ extern int log_osl;
 #else
 #define SOCKET_TYPE int
 #endif
+
+static int backgwindow_counter = 0;
 
 struct UAEOSSYSLINKBase {
 	uae_u8 dummy[LIBRARY_SIZEOF];

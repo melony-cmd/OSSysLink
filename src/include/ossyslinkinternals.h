@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef UAE_OSSYSLINK_H
-#define UAE_OSSYSLINK_H
+//#ifndef UAE_OSSYSLINK_H
+//#define UAE_OSSYSLINK_H
 
 #include "uae/types.h"
 #include "traps.h"
@@ -23,4 +23,4 @@ extern "C" {
 }
 #endif
 
-#endif
+//#endif

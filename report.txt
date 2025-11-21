@@ -274,6 +274,64 @@ Filename: src/filesys.cpp
  	last_resident = resaddr;
 
 
+--------------------------------------------------------------------------------
+Filename: src/newcpu.cpp
+--------------------------------------------------------------------------------
+--- /home/inner/Source/amiberry_v7.1.1/src/newcpu.cpp
++++ /home/inner/Source/amiberry-7.1.1.zip/src/newcpu.cpp
+@@ -66,11 +66,6 @@
+ /* Need to have these somewhere */
+
+ bool check_prefs_changed_comp (bool checkonly) { return false; }
+
+ #endif
+
+-
+
+-/* nuclear option to force window to background 'constantly' */
+
+-#include "ossyslink.h"
+
+-#include "ossyslinkinternals.h"
+
+-
+
+ /* For faster JIT cycles handling */
+
+ int pissoff = 0;
+
+ 
+
+@@ -6609,14 +6604,6 @@
+ 		int restored = 0;
+
+ 		void (*run_func)(void);
+
+ 
+
+-		/* hack to force the window to background, we tried doing it nicely this is the nuclear option! */
+
+-		static int backgwindow_counter = 0;
+
+-		if (++backgwindow_counter>=OSL_FORCE_BACKGWINDOW_THRESHOLD) {
+
+-			backgwindow_counter = 0;
+
+-			osl_forcewindowbackground_cxx();
+
+-		}
+
+-
+
+-
+
+ 		cputrace.state = -1;
+
+ 
+
+ 		if (regs.halted == CPU_HALT_ACCELERATOR_CPU_FALLBACK) {
+
+
 Only in A: src/include/ossyslink.h
 Only in A: src/include/ossyslinkinternals.h
 --------------------------------------------------------------------------------
